@@ -1,0 +1,12 @@
+from flask import Blueprint
+from controllers import music as music_controller
+
+music_bp = Blueprint('music', __name__, url_prefix='/music')
+
+@music_bp.route('/search', methods=['GET'])
+def search_music():
+    return music_controller.search_music()
+
+@music_bp.route('', methods=['GET'])
+def get_music_list():
+    return music_controller.get_music_list()
