@@ -2,6 +2,12 @@ import pymysql
 import os
 from dotenv import load_dotenv
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+
+
+
 def connect_to_mysql(host, port, user, password, database):
     try:
         conn = pymysql.connect(
@@ -13,10 +19,15 @@ def connect_to_mysql(host, port, user, password, database):
             cursorclass=pymysql.cursors.DictCursor
         )
         print(f"MySQL 데이터베이스 '{database}'에 성공적으로 연결되었습니다.")
+        print("DB HOST:", host)
+        print("DB PORT:", port)
+        print("DB USER:", user)
+        print("DB DATABASE:", database)
         return conn
     except pymysql.MySQLError as e:
         print(f"MySQL 연결 오류: {e}")
         return None
+
 
 if __name__ == '__main__':
     DB_HOST = os.getenv('DB_HOST')
@@ -28,15 +39,7 @@ if __name__ == '__main__':
     conn = connect_to_mysql(DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_DATABASE)
 
     if conn:
-        try:
-            with conn.cursor() as cursor:
-                sql = "SELECT VERSION()"
-                cursor.execute(sql)
-                result = cursor.fetchone()
-                print(f"MariaDB 버전: {result}")
-        except pymysql.MySQLError as e:
-            print(f"데이터베이스 작업 오류: {e}")
-        finally:
-            if conn:
-                conn.close()
-                print("MariaDB 연결이 종료되었습니다.")
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT VERSION()")
+            print(cursor.fetchone())
+        conn.close()

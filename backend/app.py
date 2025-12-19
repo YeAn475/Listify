@@ -2,16 +2,18 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-from spotipy.oauth2 import SpotifyClientCredentials
-import spotipy
-from flask_cors import CORS
+
+
 
 from routes.auth import auth_bp
 from routes.notice import notice_bp
 from routes.user import user_bp
+from routes.music import music_bp
+from routes.playlist import playlist_bp
 
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -21,13 +23,10 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.register_blueprint(auth_bp)
 app.register_blueprint(notice_bp)
 app.register_blueprint(user_bp)
+app.register_blueprint(music_bp)
+app.register_blueprint(playlist_bp)
 
 # Spotify 인증
-client_credentials_manager = SpotifyClientCredentials(
-    client_id=os.getenv('SPOTIFY_CLIENT_ID'),
-    client_secret=os.getenv('SPOTIFY_CLIENT_SECRET')
-)
-sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
 # 기본 라우트
 @app.route('/')
@@ -71,7 +70,7 @@ def health():
             return {
                 'status': 'healthy',
                 'database': 'connected',
-                'spotify': sp is not None,
+                
                 'version': version['VERSION()']
             }, 200
         except Exception as e:
