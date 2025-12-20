@@ -97,5 +97,11 @@ def health():
 if __name__ == '__main__':
     print("Test: http://localhost:5000/test")
     print("Health: http://localhost:5000/health")
-    
+
+    # 등록된 모든 route 확인
+    print("\n=== 등록된 Routes ===")
+    for rule in app.url_map.iter_rules():
+        print(f"{rule.endpoint}: {rule.rule} {rule.methods}")
+    print("==================\n")
+
     app.run(host='0.0.0.0', port=5001, debug=True)
