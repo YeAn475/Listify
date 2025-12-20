@@ -9,6 +9,9 @@ from flask_cors import CORS
 from routes.auth import auth_bp
 from routes.notice import notice_bp
 from routes.user import user_bp
+from routes.playlist import playlist_bp
+from routes.music_list import music_list_bp
+from routes.music import music_bp
 
 
 load_dotenv()
@@ -21,6 +24,9 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.register_blueprint(auth_bp)
 app.register_blueprint(notice_bp)
 app.register_blueprint(user_bp)
+app.register_blueprint(playlist_bp)
+app.register_blueprint(music_list_bp)
+app.register_blueprint(music_bp)
 
 # Spotify 인증
 client_credentials_manager = SpotifyClientCredentials(
