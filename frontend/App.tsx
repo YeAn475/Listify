@@ -1,10 +1,9 @@
 // frontend/App.tsx
 import React, { useState, useEffect } from 'react';
 
-
-import { 
-  Home, Library, Search as SearchIcon, User as UserIcon, LogOut, 
-  Settings, Bell, Plus, Play, Pause, Music as MusicIcon, 
+import {
+  Home, Library, Search as SearchIcon, User as UserIcon, LogOut,
+  Settings, Bell, Plus, Play, Pause, Music as MusicIcon,
   Search, Loader2, Heart, Check, Calendar, Clock, Edit3, Trash2
 } from 'lucide-react';
 
@@ -41,12 +40,6 @@ import {
 } from './services/userService';
 
 import { MOCK_NOTICES, MOCK_STATS } from './constants';
-import { searchMusic, getAllMusic, getTop50Music } from './services/musicService';
-import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
-import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic } from './services/playlistService';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_NOTICES, MOCK_STATS } from './constants';
-import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
-]
 
 import Header from './components/Header';
 import PlaylistCard from './components/PlaylistCard';
@@ -117,21 +110,6 @@ function App() {
     };
     checkAuth();
   }, []);
-
-  const fetchPlaylists = async (userNo: number) => {
-    setIsLoading(true);
-    try {
-      const res = await getUserPlaylists(userNo);
-      if (res.success && res.data) {
-        const withMusic = await Promise.all(
-          res.data.map(async (p: Playlist) => {
-            const m = await getPlaylistMusic(p.playlist_no);
-            return { ...p, music_items: m.data?.music_list || [] };
-          })
-        );
-        setPlaylists(withMusic);
-        setPlaylistCount(withMusic.length);
-      }
 
   // 플레이리스트 목록 조회 함수 (음악 포함)
   const fetchPlaylists = async (userNo: number) => {
@@ -219,9 +197,10 @@ function App() {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      setIsSearching(false);
     }
   };
+
   const toggleCart = (song: Music) => {
     const isInCart = cart.some(c => c.spotify_url === song.spotify_url);
     if (isInCart) {
@@ -238,38 +217,37 @@ function App() {
   };
 
   // 플레이리스트 저장 (장바구니에서 새 플레이리스트 생성)
-  // 플레이리스트 저장 (장바구니에서 새 플레이리스트 생성)
-const handleSavePlaylist = async (title: string, content: string) => {
-  if (!user) return;
-  
-  try {
-    // title, content만 전달 (userNo 제외)
-    const createRes = await createPlaylist(title, content);
-    if (!createRes.success || !createRes.data) {
-      alert('플레이리스트 생성에 실패했습니다.');
-      return;
+  const handleSavePlaylist = async (title: string, content: string) => {
+    if (!user) return;
+
+    try {
+      // title, content만 전달 (userNo 제외)
+      const createRes = await createPlaylist(title, content);
+      if (!createRes.success || !createRes.data) {
+        alert('플레이리스트 생성에 실패했습니다.');
+        return;
+      }
+
+      const playlistNo = createRes.data.playlist_no;
+
+      // 장바구니의 음악들을 플레이리스트에 추가
+      for (const music of cart) {
+        await addMusicToPlaylist(playlistNo, music.music_no);
+      }
+
+      // 장바구니 비우기
+      setCart([]);
+      setIsCartOpen(false);
+
+      // 플레이리스트 목록 새로고침
+      await fetchPlaylists(user.user_no);
+
+      alert('플레이리스트가 저장되었습니다!');
+    } catch (error) {
+      console.error('플레이리스트 저장 실패:', error);
+      alert('플레이리스트 저장에 실패했습니다.');
     }
-    
-    const playlistNo = createRes.data.playlist_no;
-    
-    // 장바구니의 음악들을 플레이리스트에 추가
-    for (const music of cart) {
-      await addMusicToPlaylist(playlistNo, music.music_no);
-    }
-    
-    // 장바구니 비우기
-    setCart([]);
-    setIsCartOpen(false);
-    
-    // 플레이리스트 목록 새로고침
-    await fetchPlaylists(user.user_no);
-    
-    alert('플레이리스트가 저장되었습니다!');
-  } catch (error) {
-    console.error('플레이리스트 저장 실패:', error);
-    alert('플레이리스트 저장에 실패했습니다.');
-  }
-};
+  };
 
   // 플레이리스트에서 음악 제거
   const handleRemoveMusic = async (musicNo: number) => {
@@ -292,7 +270,7 @@ const handleSavePlaylist = async (title: string, content: string) => {
     if (!selectedPlaylist) return;
     const confirmed = window.confirm('정말로 이 플레이리스트를 삭제하시겠습니까?');
     if (!confirmed) return;
-    
+
     try {
       const res = await deletePlaylist(selectedPlaylist.playlist_no);
       if (res.success && user) {
@@ -306,15 +284,6 @@ const handleSavePlaylist = async (title: string, content: string) => {
       alert('플레이리스트 삭제에 실패했습니다.');
     }
   };
-
-  // 인증 확인 중 로딩 화면
-  if (isAuthChecking) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-black text-white">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
 
   const handleProfileUpdate = async (nickname: string) => {
     if (!user) return;
@@ -337,6 +306,31 @@ const handleSavePlaylist = async (title: string, content: string) => {
     );
 
     if (!confirmed) return;
+
+    try {
+      const response = await deleteAccount(user.user_no);
+      if (response.success) {
+        alert('회원 탈퇴가 완료되었습니다.');
+        logoutApi();
+        setUser(null);
+        setAuthView('login');
+      } else {
+        throw new Error(response.message || '회원 탈퇴 실패');
+      }
+    } catch (error) {
+      console.error('회원 탈퇴 실패:', error);
+      alert('회원 탈퇴에 실패했습니다.');
+    }
+  };
+
+  // 인증 확인 중 로딩 화면
+  if (isAuthChecking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -371,8 +365,6 @@ const handleSavePlaylist = async (title: string, content: string) => {
   return (
     <div className="flex h-screen bg-black text-white">
       {/* Sidebar */}
-      {/* ... (이하 구조는 upstream 그대로 유지) */}
-      <NoticesPage />
       <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
         <div className="p-6 flex items-center gap-2 text-primary">
           <MusicIcon className="w-8 h-8" />
@@ -415,18 +407,18 @@ const handleSavePlaylist = async (title: string, content: string) => {
             <Settings className="w-4 h-4" /> 설정
           </button>
 
-          <button 
+          <button
             onClick={handleDeleteAccount}
             className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-orange-400 text-sm transition-colors"
           >
             <Trash2 className="w-4 h-4" /> 회원탈퇴
           </button>
-          <button 
+          <button
             onClick={() => {
               logoutApi();
               setUser(null);
               setAuthView('login');
-            }} 
+            }}
             className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-red-400 text-sm transition-colors"
           >
             <LogOut className="w-4 h-4" /> 로그아웃
@@ -584,7 +576,7 @@ const handleSavePlaylist = async (title: string, content: string) => {
                     </div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsProfileEditOpen(true)}
                   className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full transition-colors self-start md:self-center"
                 >
@@ -697,10 +689,21 @@ const handleSavePlaylist = async (title: string, content: string) => {
           initialContent={isEditMode ? selectedPlaylist?.content || '' : ''}
           mode={isEditMode ? 'edit' : 'create'}
         />
+
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+
+        <ProfileEditModal
+          isOpen={isProfileEditOpen}
+          onClose={() => setIsProfileEditOpen(false)}
+          currentNickname={user.nickname}
+          onSave={handleProfileUpdate}
+        />
       </main>
     </div>
   );
 }
 
 export default App;
-// test
