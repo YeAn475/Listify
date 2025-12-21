@@ -11,10 +11,8 @@ import { searchMusic, getAllMusic, getTop50Music } from './services/musicService
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
 
 import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic } from './services/playlistService';
-import { MOCK_NOTICES, MOCK_STATS } from './constants';
+import { MOCK_STATS } from './constants';
 import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
-import { getUserPlaylists } from './services/playlistService';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_NOTICES, MOCK_STATS } from './constants';
 
 import Header from './components/Header';
 import PlaylistCard from './components/PlaylistCard';
@@ -26,7 +24,7 @@ import CreatePlaylistModal from './components/CreatePlaylistModal';
 import { GenreDistribution, WeeklyActivity, AudioRadar } from './components/Charts';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
-import { NoticesPage } from './pages/NoticesPage'; 
+import { NoticesPage } from './pages/NoticesPage';
 
 type AuthView = 'login' | 'register' | null;
 
@@ -467,7 +465,10 @@ useEffect(() => {
                     <p className="text-zinc-600 text-sm mt-2">좋아하는 곡을 찾아 장바구니에 담아보세요.</p>
                   </div>
                 ) : (
-                  playlists.map(p => <PlaylistCard key={p.playlist_no} playlist={p} onClick={handlePlaylistClick} />)
+                  playlists.map(p => <PlaylistCard key={p.playlist_no} playlist={p} onClick={(playlist) => {
+                    setSelectedPlaylist(playlist);
+                    setIsDetailOpen(true);
+                  }} />)
                 )}
               </div>
             </div>
@@ -531,7 +532,6 @@ useEffect(() => {
             </div>
           )}
           {view === 'notices' && <NoticesPage />}
-
         </div>
 
         {/* Player Bar */}
@@ -571,15 +571,65 @@ useEffect(() => {
           items={cart}
           onRemove={(url) => setCart(cart.filter(c => c.spotify_url !== url))}
           onClear={() => setCart([])}
-          onSavePlaylist={handleSavePlaylist}
+          onSavePlaylist={async (title, desc) => {
+            try {
+              const response = await createPlaylist(title, desc);
+
+              if (response.success) {
+                const newPlaylist = response.data;
+                setPlaylists([newPlaylist, ...playlists]);
+                setCart([]);
+                setIsCartOpen(false);
+                setView('library');
+
+                alert('플레이리스트가 생성되었습니다!');
+                if (user) {
+                  await fetchPlaylists(user.user_no);
+                }
+              } else {
+                alert(response.message || '플레이리스트 생성에 실패했습니다.');
+              }
+            } catch (error) {
+              console.error('플레이리스트 생성 실패:', error);
+              alert('플레이리스트 생성 중 오류가 발생했습니다.');
+            }
+          }}
         />
 
         <PlaylistDetail
           playlist={selectedPlaylist}
           isOpen={isDetailOpen}
           onClose={() => setIsDetailOpen(false)}
-          onRemoveMusic={handleRemoveMusic}
-          onDeletePlaylist={handleDeletePlaylist}
+          onRemoveMusic={async (musicNo) => {
+            if (!selectedPlaylist || !user) return;
+            try {
+              const res = await removeMusicFromPlaylist(selectedPlaylist.playlist_no, musicNo);
+              if (res.success) {
+                await fetchPlaylists(user.user_no);
+                const updated = playlists.find(p => p.playlist_no === selectedPlaylist.playlist_no);
+                setSelectedPlaylist(updated || null);
+              }
+            } catch (error) {
+              console.error('음악 제거 실패:', error);
+            }
+          }}
+          onDeletePlaylist={async () => {
+            if (!selectedPlaylist || !user) return;
+            const confirmed = window.confirm('플레이리스트를 삭제하시겠습니까?');
+            if (!confirmed) return;
+
+            try {
+              const res = await deletePlaylist(selectedPlaylist.playlist_no);
+              if (res.success) {
+                await fetchPlaylists(user.user_no);
+                setIsDetailOpen(false);
+                setSelectedPlaylist(null);
+                alert('플레이리스트가 삭제되었습니다.');
+              }
+            } catch (error) {
+              console.error('플레이리스트 삭제 실패:', error);
+            }
+          }}
           onEdit={() => {
             setIsEditMode(true);
             setIsCreateModalOpen(true);
@@ -604,8 +654,19 @@ useEffect(() => {
               }
             } else {
               // 생성 모드
-              await handleSavePlaylist(title, content);
-              setIsCreateModalOpen(false);
+              try {
+                const response = await createPlaylist(title, content);
+                if (response.success && user) {
+                  await fetchPlaylists(user.user_no);
+                  setIsCreateModalOpen(false);
+                  alert('플레이리스트가 생성되었습니다!');
+                } else {
+                  alert(response.message || '플레이리스트 생성에 실패했습니다.');
+                }
+              } catch (error) {
+                console.error('플레이리스트 생성 실패:', error);
+                alert('플레이리스트 생성 중 오류가 발생했습니다.');
+              }
             }
           }}
           initialTitle={isEditMode ? selectedPlaylist?.title : ''}

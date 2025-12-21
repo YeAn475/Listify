@@ -9,9 +9,9 @@ from flask_cors import CORS
 from routes.auth import auth_bp
 from routes.notice import notice_bp
 from routes.user import user_bp
-from routes.playlist import playlist_bp          
-from routes.music_list import music_list_bp   
-from routes.music import music_bp   
+from routes.playlist import playlist_bp
+from routes.music_list import music_list_bp
+from routes.music import music_bp
 
 
 load_dotenv()
@@ -32,8 +32,8 @@ CORS(app, resources={
 app.register_blueprint(auth_bp)
 app.register_blueprint(notice_bp)
 app.register_blueprint(user_bp)
-app.register_blueprint(playlist_bp) 
-app.register_blueprint(music_list_bp) 
+app.register_blueprint(playlist_bp)
+app.register_blueprint(music_list_bp)
 app.register_blueprint(music_bp)
 
 # Spotify 인증
@@ -110,5 +110,11 @@ def health():
 if __name__ == '__main__':
     print("Test: http://localhost:5000/test")
     print("Health: http://localhost:5000/health")
-    
+
+    # 등록된 모든 route 확인
+    print("\n=== 등록된 Routes ===")
+    for rule in app.url_map.iter_rules():
+        print(f"{rule.endpoint}: {rule.rule} {rule.methods}")
+    print("==================\n")
+
     app.run(host='0.0.0.0', port=5001, debug=True)
