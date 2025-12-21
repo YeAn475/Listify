@@ -62,7 +62,11 @@ export function SearchPage({
       const results = await searchByGenre(genre);
       setSearchResults(results);
       setHasMore(false); // 장르 검색은 더보기 없음
-    } finally {
+    }  catch (e) {
+    alert('장르 검색 중 오류가 발생했습니다.');
+    setSearchResults([]);
+    setHasMore(false);
+  } finally {
       setIsSearching(false);
     }
   };
