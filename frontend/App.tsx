@@ -2,21 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { 
   Home, Library, Search as SearchIcon, User as UserIcon, LogOut, 
   Settings, Bell, Plus, Play, Pause, Music as MusicIcon, 
-  Search, Loader2, Heart, Check, Calendar, Clock, Edit3
+  Search, Loader2, Heart, Check, Calendar, Clock, Edit3, Trash2
 } from 'lucide-react';
 import { Music, Playlist, AppView, User } from './types';
 import { getAccessToken, getPopularTracks, searchSpotifyTracks } from './services/spotifyService';
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_NOTICES, MOCK_STATS } from './constants';
+import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
+import { getUserPlaylists } from './services/playlistService';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_STATS } from './constants';
 
 import Header from './components/Header';
 import PlaylistCard from './components/PlaylistCard';
 import SettingsModal from './components/SettingsModal';
+import ProfileEditModal from './components/ProfileEditModal';
 import CartSidebar from './components/CartSidebar';
 import { GenreDistribution, WeeklyActivity, AudioRadar } from './components/Charts';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
-// test
+import { NoticesPage } from './pages/NoticesPage';
 
 type AuthView = 'login' | 'register' | null;
 
@@ -28,6 +31,8 @@ function App() {
   const [songs, setSongs] = useState<Music[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [playlistCount, setPlaylistCount] = useState(0);
   const [currentSong, setCurrentSong] = useState<Music | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   
@@ -64,6 +69,37 @@ function App() {
     checkAuth();
   }, []);
 
+  // 프로필 및 플레이리스트 데이터 로드
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user) return;
+
+      try {
+        // 프로필 정보 로드
+        const profileResponse = await getUserProfile(user.user_no);
+        if (profileResponse.success) {
+          setUser(prev => prev ? {
+            ...prev,
+            email: profileResponse.data.email,
+            nickname: profileResponse.data.nickname,
+            profile_url: profileResponse.data.profile_url
+          } : null);
+        }
+
+        // 플레이리스트 개수 로드
+        const playlistResponse = await getUserPlaylists(user.user_no);
+        if (playlistResponse.success) {
+          setPlaylists(playlistResponse.data || []);
+          setPlaylistCount(playlistResponse.data?.length || 0);
+        }
+      } catch (error) {
+        console.error('사용자 데이터 로드 실패:', error);
+      }
+    };
+
+    loadUserData();
+  }, [user?.user_no]);
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -99,6 +135,44 @@ function App() {
       setCart(cart.filter(c => c.spotify_url !== song.spotify_url));
     } else {
       setCart([...cart, song]);
+    }
+  };
+
+  const handleProfileUpdate = async (nickname: string) => {
+    if (!user) return;
+
+    const response = await updateUserProfile(user.user_no, nickname);
+    if (response.success) {
+      setUser(prev => prev ? { ...prev, nickname } : null);
+      localStorage.setItem('nickname', nickname);
+      alert('프로필이 수정되었습니다.');
+    } else {
+      throw new Error(response.message || '프로필 수정 실패');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    const confirmed = window.confirm(
+      '정말로 탈퇴하시겠습니까?\n모든 데이터가 삭제되며 복구할 수 없습니다.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await deleteAccount(user.user_no);
+      if (response.success) {
+        alert('회원탈퇴가 완료되었습니다.');
+        logoutApi();
+        setUser(null);
+        setAuthView('login');
+      } else {
+        alert(response.message || '회원탈퇴에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('회원탈퇴 실패:', error);
+      alert('회원탈퇴에 실패했습니다.');
     }
   };
 
@@ -142,6 +216,13 @@ function App() {
         initialClientSecret={SPOTIFY_CLIENT_SECRET}
       />
 
+      <ProfileEditModal
+        isOpen={isProfileEditOpen}
+        onClose={() => setIsProfileEditOpen(false)}
+        currentNickname={user.nickname}
+        onSave={handleProfileUpdate}
+      />
+
       {/* Sidebar */}
       <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
         <div className="p-6 flex items-center gap-2 text-primary">
@@ -172,26 +253,32 @@ function App() {
         </nav>
 
         <div className="p-4 border-t border-zinc-800 space-y-2">
-           <button 
+          <button 
             onClick={() => setIsCartOpen(true)}
             className="w-full flex items-center justify-between px-4 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors text-sm border border-primary/20"
-           >
-             <span className="flex items-center gap-2 font-medium"><Plus className="w-4 h-4" /> 장바구니</span>
-             <span className="bg-primary text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{cart.length}</span>
-           </button>
-           <button onClick={() => setIsSettingsOpen(true)} className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-white text-sm transition-colors">
-             <Settings className="w-4 h-4" /> 설정
-           </button>
-           <button 
-             onClick={() => {
-               logoutApi();
-               setUser(null);
-               setAuthView('login');
-             }} 
-             className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-red-400 text-sm transition-colors"
-           >
-             <LogOut className="w-4 h-4" /> 로그아웃
-           </button>
+          >
+            <span className="flex items-center gap-2 font-medium"><Plus className="w-4 h-4" /> 장바구니</span>
+            <span className="bg-primary text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{cart.length}</span>
+          </button>
+          <button onClick={() => setIsSettingsOpen(true)} className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-white text-sm transition-colors">
+            <Settings className="w-4 h-4" /> 설정
+          </button>
+          <button 
+            onClick={handleDeleteAccount}
+            className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-orange-400 text-sm transition-colors"
+          >
+            <Trash2 className="w-4 h-4" /> 회원탈퇴
+          </button>
+          <button 
+            onClick={() => {
+              logoutApi();
+              setUser(null);
+              setAuthView('login');
+            }} 
+            className="w-full flex items-center gap-3 px-4 py-2 text-zinc-500 hover:text-red-400 text-sm transition-colors"
+          >
+            <LogOut className="w-4 h-4" /> 로그아웃
+          </button>
         </div>
       </aside>
 
@@ -339,15 +426,18 @@ function App() {
                   <div className="flex flex-wrap justify-center md:justify-start gap-4">
                     <div className="bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
                       <p className="text-xs text-zinc-500">플레이리스트</p>
-                      <p className="text-lg font-bold">{playlists.length}</p>
+                      <p className="text-lg font-bold">{playlistCount}</p>
                     </div>
                     <div className="bg-zinc-950 px-4 py-2 rounded-xl border border-zinc-800">
                       <p className="text-xs text-zinc-500">누적 감상 시간</p>
-                      <p className="text-lg font-bold">{(MOCK_STATS.totalMinutes / 60).toFixed(0)}시간</p>
+                      <p className="text-lg font-bold">71시간</p>
                     </div>
                   </div>
                 </div>
-                <button className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full transition-colors self-start md:self-center">
+                <button 
+                  onClick={() => setIsProfileEditOpen(true)}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full transition-colors self-start md:self-center"
+                >
                   <Edit3 className="w-5 h-5" />
                 </button>
               </div>
@@ -355,50 +445,30 @@ function App() {
               {/* Analytics Section */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800">
-                   <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                     <Plus className="w-4 h-4 text-primary" /> 선호 장르 분포
-                   </h3>
-                   <GenreDistribution data={MOCK_STATS.topGenres} />
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-primary" /> 선호 장르 분포
+                  </h3>
+                  <GenreDistribution data={MOCK_STATS.topGenres} />
                 </div>
                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800">
-                   <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                     <Clock className="w-4 h-4 text-primary" /> 주간 활동 패턴
-                   </h3>
-                   <WeeklyActivity data={MOCK_STATS.weeklyActivity} />
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" /> 주간 활동 패턴
+                  </h3>
+                  <WeeklyActivity data={MOCK_STATS.weeklyActivity} />
                 </div>
                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800 lg:col-span-2">
-                   <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                     <MusicIcon className="w-4 h-4 text-primary" /> 음악적 특성 분석
-                   </h3>
-                   <div className="max-w-xl mx-auto">
-                     <AudioRadar data={MOCK_STATS.audioFeatures} />
-                   </div>
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <MusicIcon className="w-4 h-4 text-primary" /> 음악적 특성 분석
+                  </h3>
+                  <div className="max-w-xl mx-auto">
+                    <AudioRadar data={MOCK_STATS.audioFeatures} />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {view === 'notices' && (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <h2 className="text-3xl font-black mb-8">공지사항</h2>
-              <div className="space-y-4">
-                {MOCK_NOTICES.map((notice) => (
-                  <div key={notice.notice_no} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:bg-zinc-800/50 transition-colors cursor-pointer group">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{notice.title}</h3>
-                      <span className="flex items-center gap-1.5 text-xs text-zinc-500 font-mono">
-                        <Calendar className="w-3 h-3" /> {notice.created_at}
-                      </span>
-                    </div>
-                    <p className="text-zinc-400 line-clamp-2 text-sm leading-relaxed">{notice.content}</p>
-                    <div className="mt-4 pt-4 border-t border-zinc-800 flex items-center text-xs text-zinc-500">
-                      <span className="bg-zinc-950 px-2 py-1 rounded border border-zinc-800">운영자 공지</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {view === 'notices' && <NoticesPage />}
         </div>
 
         {/* Player Bar */}
@@ -416,7 +486,7 @@ function App() {
             </div>
             <div className="flex-1 flex flex-col items-center gap-2">
               <div className="flex items-center gap-6">
-                 <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg">
+                <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg">
                   {isPlaying ? <Pause className="w-5 h-5 text-black" /> : <Play className="w-5 h-5 text-black ml-1" />}
                 </button>
               </div>

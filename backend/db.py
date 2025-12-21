@@ -10,6 +10,7 @@ def connect_to_mysql(host, port, user, password, database):
             user=user,
             password=password,
             database=database,
+            charset="utf8mb4", 
             cursorclass=pymysql.cursors.DictCursor
         )
         print(f"MySQL 데이터베이스 '{database}'에 성공적으로 연결되었습니다.")
