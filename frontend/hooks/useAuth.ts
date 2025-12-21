@@ -1,49 +1,58 @@
 import { useState, useEffect } from 'react';
 import { User } from '../types';
-import { logout as logoutApi, getToken, verifyToken } from '../services/authService';
+import { verifyToken, logout as logoutApi } from '../services/authService';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authView, setAuthView] = useState<'login' | 'register' | null>('login');
 
-  // 자동 로그인 체크
+  // 🔁 새로고침 시 자동 로그인
   useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
     const checkAuth = async () => {
-      const token = getToken();
-      if (token) {
+      try {
         const response = await verifyToken(token);
         if (response.success && response.data) {
-          const nickname = localStorage.getItem('nickname') || 'User';
-          const userNo = parseInt(localStorage.getItem('user_no') || '0');
           setUser({
-            user_no: userNo,
+            user_no: response.data.user_no,
             role_no: response.data.role_no,
-            email: '',
-            nickname: nickname,
-            profile_url: null,
-            created_at: new Date().toISOString()
+            email: response.data.email ?? '',
+            nickname: response.data.nickname,
+            profile_url: response.data.profile_url ?? null,
+            created_at: response.data.created_at,
           });
           setAuthView(null);
+        } else {
+          handleLogout();
         }
+      } catch {
+        handleLogout();
       }
     };
+
     checkAuth();
   }, []);
 
-  const handleLoginSuccess = (userNo: number, nickname: string) => {
-    setUser({
-      user_no: userNo,
-      role_no: 1,
-      email: '',
-      nickname: nickname,
-      profile_url: null,
-      created_at: new Date().toISOString()
-    });
+  // ✅ 로그인 성공 시 (Login.tsx에서 호출)
+  const handleLoginSuccess = (
+    user: User,
+    token: string
+  ) => {
+    localStorage.setItem('accessToken', token);
+    localStorage.setItem('user_no', String(user.user_no));
+    localStorage.setItem('nickname', user.nickname);
+
+    setUser(user);
     setAuthView(null);
   };
 
   const handleLogout = () => {
     logoutApi();
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('user_no');
+    localStorage.removeItem('nickname');
     setUser(null);
     setAuthView('login');
   };
@@ -53,6 +62,6 @@ export const useAuth = () => {
     authView,
     setAuthView,
     handleLoginSuccess,
-    handleLogout
+    handleLogout,
   };
 };

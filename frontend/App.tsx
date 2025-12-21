@@ -1,16 +1,52 @@
+// frontend/App.tsx
 import React, { useState, useEffect } from 'react';
+
 
 import { 
   Home, Library, Search as SearchIcon, User as UserIcon, LogOut, 
   Settings, Bell, Plus, Play, Pause, Music as MusicIcon, 
   Search, Loader2, Heart, Check, Calendar, Clock, Edit3, Trash2
 } from 'lucide-react';
+
 import { Music, Playlist, AppView, User } from './types';
+
+import {
+  searchMusic,
+  getAllMusic,
+  getTop50Music
+} from './services/musicService';
+
+import {
+  getUserPlaylists,
+  createPlaylist,
+  updatePlaylist,
+  deletePlaylist,
+  addMusicToPlaylist,
+  removeMusicFromPlaylist,
+  getPlaylistMusic
+} from './services/playlistService';
+
+import {
+  login,
+  register,
+  logout as logoutApi,
+  getToken,
+  verifyToken
+} from './services/authService';
+
+import {
+  getUserProfile,
+  updateUserProfile,
+  deleteAccount
+} from './services/userService';
+
+import { MOCK_NOTICES, MOCK_STATS } from './constants';
 import { searchMusic, getAllMusic, getTop50Music } from './services/musicService';
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
 import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic } from './services/playlistService';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_NOTICES, MOCK_STATS } from './constants';
 import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
+]
 
 import Header from './components/Header';
 import PlaylistCard from './components/PlaylistCard';
@@ -30,45 +66,46 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authView, setAuthView] = useState<AuthView>('login');
   const [view, setView] = useState<AppView>('home');
+
   const [songs, setSongs] = useState<Music[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [playlistCount, setPlaylistCount] = useState(0);
-  const [currentSong, setCurrentSong] = useState<Music | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Music[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Cart state
   const [cart, setCart] = useState<Music[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Playlist detail & modal state
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+
+  const [currentSong, setCurrentSong] = useState<Music | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  // 자동 로그인 체크
+  // 🔐 자동 로그인
   useEffect(() => {
     const checkAuth = async () => {
       const token = getToken();
       if (token) {
-        const response = await verifyToken(token);
-        if (response.success && response.data) {
+        const res = await verifyToken(token);
+        if (res.success && res.data) {
           const nickname = localStorage.getItem('nickname') || 'User';
-          const userNo = parseInt(localStorage.getItem('user_no') || '0');
+          const userNo = Number(localStorage.getItem('user_no'));
           setUser({
             user_no: userNo,
-            role_no: response.data.role_no,
+            role_no: res.data.role_no,
             email: '',
-            nickname: nickname,
+            nickname,
             profile_url: null,
             created_at: new Date().toISOString()
           });
@@ -80,6 +117,21 @@ function App() {
     };
     checkAuth();
   }, []);
+
+  const fetchPlaylists = async (userNo: number) => {
+    setIsLoading(true);
+    try {
+      const res = await getUserPlaylists(userNo);
+      if (res.success && res.data) {
+        const withMusic = await Promise.all(
+          res.data.map(async (p: Playlist) => {
+            const m = await getPlaylistMusic(p.playlist_no);
+            return { ...p, music_items: m.data?.music_list || [] };
+          })
+        );
+        setPlaylists(withMusic);
+        setPlaylistCount(withMusic.length);
+      }
 
   // 플레이리스트 목록 조회 함수 (음악 포함)
   const fetchPlaylists = async (userNo: number) => {
@@ -167,10 +219,9 @@ function App() {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsSearching(false);
+      setIsLoading(false);
     }
   };
-
   const toggleCart = (song: Music) => {
     const isInCart = cart.some(c => c.spotify_url === song.spotify_url);
     if (isInCart) {
@@ -259,8 +310,8 @@ const handleSavePlaylist = async (title: string, content: string) => {
   // 인증 확인 중 로딩 화면
   if (isAuthChecking) {
     return (
-      <div className="flex h-screen bg-black text-white items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
@@ -287,23 +338,6 @@ const handleSavePlaylist = async (title: string, content: string) => {
 
     if (!confirmed) return;
 
-    try {
-      const response = await deleteAccount(user.user_no);
-      if (response.success) {
-        alert('회원탈퇴가 완료되었습니다.');
-        logoutApi();
-        setUser(null);
-        setAuthView('login');
-      } else {
-        alert(response.message || '회원탈퇴에 실패했습니다.');
-      }
-    } catch (error) {
-      console.error('회원탈퇴 실패:', error);
-      alert('회원탈퇴에 실패했습니다.');
-    }
-  };
-
-  // 로그인/회원가입 화면
   if (!user) {
     return (
       <>
@@ -335,23 +369,10 @@ const handleSavePlaylist = async (title: string, content: string) => {
   }
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden">
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onSave={(id, secret) => console.log('Saved Credentials')}
-        initialClientId=""
-        initialClientSecret=""
-      />
-
-      <ProfileEditModal
-        isOpen={isProfileEditOpen}
-        onClose={() => setIsProfileEditOpen(false)}
-        currentNickname={user.nickname}
-        onSave={handleProfileUpdate}
-      />
-
+    <div className="flex h-screen bg-black text-white">
       {/* Sidebar */}
+      {/* ... (이하 구조는 upstream 그대로 유지) */}
+      <NoticesPage />
       <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
         <div className="p-6 flex items-center gap-2 text-primary">
           <MusicIcon className="w-8 h-8" />

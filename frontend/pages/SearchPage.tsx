@@ -1,73 +1,163 @@
-import React from 'react';
+import { useState } from 'react';
 import { Music } from '../types';
-import { Search, Loader2, Plus, Check, Search as SearchIcon } from 'lucide-react';
+import { Search, Loader2, Plus, Check } from 'lucide-react';
+import { searchByArtist, searchByGenre } from '../services/musicService';
 
-interface SearchPageProps {
+interface Props {
   searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  onSearch: (e: React.FormEvent) => void;
+  setSearchQuery: (v: string) => void;
   isSearching: boolean;
+  setIsSearching: (v: boolean) => void;
   searchResults: Music[];
+  setSearchResults: (m: Music[]) => void;
   cart: Music[];
   onToggleCart: (song: Music) => void;
 }
 
-export const SearchPage: React.FC<SearchPageProps> = ({
+const PAGE_SIZE = 12;
+
+export function SearchPage({
   searchQuery,
   setSearchQuery,
-  onSearch,
   isSearching,
+  setIsSearching,
   searchResults,
+  setSearchResults,
   cart,
   onToggleCart
-}) => {
+}: Props) {
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [mode, setMode] = useState<'artist' | 'genre'>('artist');
+
+  // 🔍 아티스트 검색 (페이징)
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setMode('artist');
+    setIsSearching(true);
+    setPage(1);
+
+    try {
+      const res = await searchByArtist(searchQuery, 1, PAGE_SIZE);
+      setSearchResults(res.data);
+      setHasMore(res.page * res.size < res.total);
+    } catch {
+      alert('검색 중 오류가 발생했습니다.');
+      setSearchResults([]);
+      setHasMore(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // 🎼 장르 검색 (기존 방식, 페이징 X)
+  const handleGenreSearch = async (genre: string) => {
+    setMode('genre');
+    setIsSearching(true);
+    setPage(1);
+
+    try {
+      const results = await searchByGenre(genre);
+      setSearchResults(results);
+      setHasMore(false); // 장르 검색은 더보기 없음
+    }  catch (e) {
+    alert('장르 검색 중 오류가 발생했습니다.');
+    setSearchResults([]);
+    setHasMore(false);
+  } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // ➕ 더보기 (아티스트 검색만)
+  const loadMore = async () => {
+    if (mode !== 'artist') return;
+
+    const nextPage = page + 1;
+    setIsSearching(true);
+
+    try {
+      const res = await searchByArtist(searchQuery, nextPage, PAGE_SIZE);
+      setSearchResults(prev => [...prev, ...res.data]);
+      setPage(nextPage);
+      setHasMore(nextPage * res.size < res.total);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="max-w-2xl mx-auto">
-        <form onSubmit={onSearch} className="relative group">
-          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${isSearching ? 'text-primary' : 'text-zinc-500 group-focus-within:text-primary'}`} />
-          <input 
-            type="text"
-            placeholder="곡 제목, 아티스트 또는 앨범 검색"
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-4 pl-12 pr-4 text-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all shadow-xl"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {isSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary animate-spin" />}
-        </form>
+    <div className="space-y-6">
+      {/* 검색창 */}
+      <form onSubmit={handleSearch} className="relative max-w-xl mx-auto">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          value={searchQuery}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setSearchQuery(e.target.value)
+          }
+          className="w-full bg-zinc-900 rounded-full py-3 pl-12 pr-4"
+          placeholder="아티스트 검색"
+        />
+        {isSearching && (
+          <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-zinc-400" />
+        )}
+      </form>
+
+      {/* 🔥 장르 버튼 (하드코딩 유지) */}
+      <div className="flex justify-center gap-2 flex-wrap">
+        {['K-Pop', 'Pop', 'Rock', 'Hip-Hop', 'Jazz', 'Electronic'].map(g => (
+          <button
+            key={g}
+            onClick={() => handleGenreSearch(g)}
+            className="px-4 py-1 rounded-full bg-zinc-800 hover:bg-primary hover:text-black text-sm"
+          >
+            #{g}
+          </button>
+        ))}
       </div>
 
-      {searchResults.length > 0 ? (
-        <div className="space-y-4">
-          <h3 className="text-xl font-bold">검색 결과</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {searchResults.map((song, i) => (
-              <div key={i} className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50 hover:bg-zinc-800 transition-all group">
-                <img src={song.album_image_url} className="w-16 h-16 rounded-lg object-cover" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate text-white">{song.track_name}</p>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5">{song.artist_name}</p>
-                </div>
-                <button 
-                  onClick={() => onToggleCart(song)}
-                  className={`p-2 rounded-full transition-all ${
-                    cart.some(c => c.spotify_url === song.spotify_url)
-                    ? 'bg-primary/20 text-primary border border-primary/30'
-                    : 'bg-zinc-800 text-zinc-400 opacity-0 group-hover:opacity-100 hover:text-white'
-                  }`}
-                >
-                  {cart.some(c => c.spotify_url === song.spotify_url) ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                </button>
-              </div>
-            ))}
+      {/* 검색 결과 */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {searchResults.map(song => (
+          <div
+            key={song.music_no ?? song.spotify_url}
+            className="flex gap-4 bg-zinc-900 p-3 rounded"
+          >
+            <img
+              src={song.album_image_url}
+              className="w-14 h-14 rounded object-cover"
+              alt={song.track_name}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate">{song.track_name}</p>
+              <p className="text-xs text-zinc-400 truncate">
+                {song.artist_name}
+              </p>
+            </div>
+            <button onClick={() => onToggleCart(song)}>
+              {cart.some(c => c.spotify_url === song.spotify_url)
+                ? <Check />
+                : <Plus />}
+            </button>
           </div>
-        </div>
-      ) : !isSearching && searchQuery && (
-        <div className="py-20 text-center text-zinc-500">
-          <SearchIcon className="w-12 h-12 mx-auto mb-4 opacity-20" />
-          <p>검색 결과가 없습니다.</p>
+        ))}
+      </div>
+
+      {/* ➕ 더보기 버튼 (아티스트 검색만) */}
+      {hasMore && mode === 'artist' && (
+        <div className="text-center mt-6">
+          <button
+            onClick={loadMore}
+            disabled={isSearching}
+            className="px-6 py-2 rounded bg-zinc-800 hover:bg-primary hover:text-black disabled:opacity-50"
+          >
+            더 보기
+          </button>
         </div>
       )}
     </div>
   );
-};
+}
