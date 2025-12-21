@@ -43,6 +43,7 @@ export interface Playlist {
   created_at: string;
   updated_at: string;
   music_items?: Music[];
+  nickname?: string;
 }
 
 export interface ListeningStats {
@@ -52,7 +53,7 @@ export interface ListeningStats {
   audioFeatures: { subject: string; A: number; fullMark: number }[];
 }
 
-export type AppView = 'home' | 'search' | 'library' | 'profile' | 'notices';
+export type AppView = 'home' | 'search' | 'library' | 'recommendations' | 'profile' | 'notices';
 export type AuthState = 'login' | 'signup' | 'forgot-password';
 
 export interface CartItem extends Music {

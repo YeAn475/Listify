@@ -126,3 +126,28 @@ export const getPlaylistMusic = async (playlistNo: number): Promise<ApiResponse<
     return { success: false, message: '음악 목록을 불러올 수 없습니다.' };
   }
 };
+
+// 공개 플레이리스트 목록 조회 (자신의 플레이리스트 제외)
+export const getPublicPlaylists = async (): Promise<ApiResponse<Playlist[]>> => {
+  try {
+    const response = await authFetch('/playlist/public');
+    return await response.json();
+  } catch (error) {
+    console.error('공개 플레이리스트 목록 조회 오류:', error);
+    return { success: false, message: '공개 플레이리스트 목록을 불러올 수 없습니다.' };
+  }
+};
+
+// 플레이리스트 복사
+export const copyPlaylist = async (playlistNo: number, title: string, content?: string): Promise<ApiResponse<{ playlist_no: number }>> => {
+  try {
+    const response = await authFetch(`/playlist/${playlistNo}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({ title, content })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('플레이리스트 복사 오류:', error);
+    return { success: false, message: '플레이리스트 복사에 실패했습니다.' };
+  }
+};

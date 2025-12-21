@@ -106,3 +106,30 @@ def find_detail_with_user(playlist_no: int):
             return cursor.fetchone()
     finally:
         conn.close()
+
+
+def list_public_playlists(exclude_user_no: int = None):
+    """공개 플레이리스트 목록 조회 (특정 유저 제외 가능)"""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            if exclude_user_no:
+                sql = (
+                    "SELECT p.playlist_no, p.user_no, p.title, p.content,"
+                    " p.created_at, p.updated_at, u.nickname"
+                    " FROM playlist p LEFT JOIN user u ON p.user_no = u.user_no"
+                    " WHERE p.user_no != %s"
+                    " ORDER BY p.created_at DESC"
+                )
+                cursor.execute(sql, (exclude_user_no,))
+            else:
+                sql = (
+                    "SELECT p.playlist_no, p.user_no, p.title, p.content,"
+                    " p.created_at, p.updated_at, u.nickname"
+                    " FROM playlist p LEFT JOIN user u ON p.user_no = u.user_no"
+                    " ORDER BY p.created_at DESC"
+                )
+                cursor.execute(sql)
+            return cursor.fetchall()
+    finally:
+        conn.close()

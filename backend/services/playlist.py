@@ -96,3 +96,42 @@ def find_playlist_by_no(playlist_no: int):
         return playlist, None
     except Exception as e:
         return None, str(e)
+
+
+def get_public_playlists(exclude_user_no: int = None):
+    """공개 플레이리스트 목록 조회 (특정 유저 제외 가능)"""
+    try:
+        playlists = playlist_model.list_public_playlists(exclude_user_no)
+        for p in playlists:
+            if p.get('created_at'):
+                p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
+            if p.get('updated_at'):
+                p['updated_at'] = p['updated_at'].isoformat() if hasattr(p['updated_at'], 'isoformat') else str(p['updated_at'])
+        return playlists, None
+    except Exception as e:
+        return None, str(e)
+
+
+def copy_playlist(source_playlist_no: int, user_no: int, new_title: str, new_content: str = None):
+    """플레이리스트 복사 (음악 목록 포함)"""
+    try:
+        from model import music_list as music_list_model
+
+        # 원본 플레이리스트 확인
+        source_playlist = playlist_model.find_by_playlist_no(source_playlist_no)
+        if not source_playlist:
+            return None, "존재하지 않는 플레이리스트입니다."
+
+        # 새 플레이리스트 생성
+        new_playlist_no = playlist_model.insert_playlist(user_no, new_title, new_content)
+        if not new_playlist_no:
+            return None, "플레이리스트 생성에 실패했습니다."
+
+        # 음악 목록 복사
+        music_list = music_list_model.find_by_playlist_no(source_playlist_no)
+        for music in music_list:
+            music_list_model.insert_music_to_playlist(new_playlist_no, music['music_no'])
+
+        return new_playlist_no, None
+    except Exception as e:
+        return None, str(e)

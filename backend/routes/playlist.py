@@ -38,3 +38,15 @@ def delete_playlist(playlist_no):
 def get_user_playlist_list(user_no):
     """특정 유저의 플레이리스트 목록 조회"""
     return playlist_controller.get_user_playlist_list(user_no)
+
+
+@playlist_bp.route('/public', methods=['GET'])
+def get_public_playlists():
+    """공개 플레이리스트 목록 조회 (자신의 플레이리스트 제외)"""
+    return playlist_controller.get_public_playlists()
+
+
+@playlist_bp.route('/<int:playlist_no>/copy', methods=['POST'])
+def copy_playlist(playlist_no):
+    """플레이리스트 복사"""
+    return playlist_controller.copy_playlist(playlist_no)

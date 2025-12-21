@@ -8,13 +8,13 @@ import SearchPage from './pages/SearchPage';
 import {
   Home, Library, Search as SearchIcon, User as UserIcon, LogOut,
   Settings, Bell, Plus, Play, Pause, Music as MusicIcon,
-  Search, Loader2, Heart, Check, Calendar, Clock, Edit3, Trash2
+  Search, Loader2, Heart, Check, Calendar, Clock, Edit3, Trash2, Sparkles
 } from 'lucide-react';
 
 import { Music, Playlist, AppView, User } from './types';
 import { searchMusic, getAllMusic, getTop50Music,  getMusicByGenre } from './services/musicService';
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
-import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic } from './services/playlistService';
+import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic, getPublicPlaylists, copyPlaylist } from './services/playlistService';
 import { MOCK_NOTICES, MOCK_STATS } from './constants';
 import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
 
@@ -26,10 +26,12 @@ import CartSidebar from './components/CartSidebar';
 import PlaylistDetail from './components/PlaylistDetail';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
 import AddToPlaylistModal from './components/AddToPlaylistModal';
+import CopyPlaylistModal from './components/CopyPlaylistModal';
 import { GenreDistribution, WeeklyActivity, AudioRadar } from './components/Charts';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { NoticesPage } from './pages/NoticesPage';
+import { PlaylistRecommendationPage } from './pages/PlaylistRecommendationPage';
 
 type AuthView = 'login' | 'register' | null;
 
@@ -41,6 +43,7 @@ function App() {
   const [songs, setSongs] = useState<Music[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistCount, setPlaylistCount] = useState(0);
+  const [publicPlaylists, setPublicPlaylists] = useState<Playlist[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Music[]>([]);
@@ -60,6 +63,9 @@ function App() {
 
   const [isAddToPlaylistModalOpen, setIsAddToPlaylistModalOpen] = useState(false);
   const [selectedMusicToAdd, setSelectedMusicToAdd] = useState<Music | null>(null);
+
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [playlistToCopy, setPlaylistToCopy] = useState<Playlist | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -457,6 +463,70 @@ const handleSearchByGenre = async (genre: string) => {
     }
   };
 
+  // 공개 플레이리스트 조회
+  const fetchPublicPlaylists = async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    try {
+      const response = await getPublicPlaylists();
+      if (response.success && response.data) {
+        const playlistsWithMusic = await Promise.all(
+          response.data.map(async (p: Playlist) => {
+            const musicRes = await getPlaylistMusic(p.playlist_no);
+            const musicData = musicRes.data as any;
+
+            return {
+              ...p,
+              music_items:
+                musicRes.success && musicData?.music_list
+                  ? musicData.music_list
+                  : [],
+            };
+          })
+        );
+        setPublicPlaylists(playlistsWithMusic);
+      }
+    } catch (error) {
+      console.error('공개 플레이리스트 조회 실패:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 플레이리스트 복사 모달 열기
+  const handleOpenCopyModal = (playlist: Playlist) => {
+    setPlaylistToCopy(playlist);
+    setIsCopyModalOpen(true);
+  };
+
+  // 플레이리스트 복사 실행
+  const handleCopyPlaylist = async (title: string, content: string) => {
+    if (!user || !playlistToCopy) return;
+
+    try {
+      const res = await copyPlaylist(playlistToCopy.playlist_no, title, content);
+      if (res.success) {
+        await fetchPlaylists(user.user_no);
+        setIsCopyModalOpen(false);
+        setPlaylistToCopy(null);
+        alert('플레이리스트가 복사되었습니다!');
+      } else {
+        alert(res.message || '플레이리스트 복사에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('플레이리스트 복사 실패:', error);
+      alert('플레이리스트 복사에 실패했습니다.');
+    }
+  };
+
+  // 플레이리스트 추천 페이지 진입 시 공개 플레이리스트 조회
+  useEffect(() => {
+    if (view === 'recommendations' && user) {
+      fetchPublicPlaylists();
+    }
+  }, [view, user]);
+
   // 로그인/회원가입 화면
   if (!user) {
     return (
@@ -517,6 +587,7 @@ const handleSearchByGenre = async (genre: string) => {
             { id: 'home', icon: Home, label: '홈' },
             { id: 'search', icon: SearchIcon, label: '탐색' },
             { id: 'library', icon: Library, label: '라이브러리' },
+            { id: 'recommendations', icon: Sparkles, label: '플레이리스트 추천' },
             { id: 'profile', icon: UserIcon, label: '프로필' },
             { id: 'notices', icon: Bell, label: '공지사항' }
           ].map((item) => (
@@ -570,7 +641,7 @@ const handleSearchByGenre = async (genre: string) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-black relative overflow-hidden">
         <Header
-          viewTitle={view === 'home' ? 'Home' : view === 'search' ? 'Search' : view === 'library' ? 'Library' : view === 'profile' ? 'Profile & Analytics' : 'Notices'}
+          viewTitle={view === 'home' ? 'Home' : view === 'search' ? 'Search' : view === 'library' ? 'Library' : view === 'recommendations' ? 'Playlist Recommendations' : view === 'profile' ? 'Profile & Analytics' : 'Notices'}
           user={user}
         />
 
@@ -735,6 +806,14 @@ const handleSearchByGenre = async (genre: string) => {
             </div>
           )}
 
+          {view === 'recommendations' && (
+            <PlaylistRecommendationPage
+              playlists={publicPlaylists}
+              onPlaylistClick={handlePlaylistClick}
+              onCopyPlaylist={handleOpenCopyModal}
+            />
+          )}
+
           {view === 'profile' && (
             <div className="space-y-10 animate-in fade-in duration-500">
               {/* Profile Card */}
@@ -859,6 +938,16 @@ const handleSearchByGenre = async (genre: string) => {
             setIsAddToPlaylistModalOpen(false);
             setIsCreateModalOpen(true);
           }}
+        />
+
+        <CopyPlaylistModal
+          isOpen={isCopyModalOpen}
+          onClose={() => {
+            setIsCopyModalOpen(false);
+            setPlaylistToCopy(null);
+          }}
+          sourcePlaylist={playlistToCopy}
+          onCopy={handleCopyPlaylist}
         />
       </main>
     </div>

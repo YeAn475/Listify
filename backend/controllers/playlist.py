@@ -123,3 +123,49 @@ def get_playlist_detail(playlist_no: int):
         return jsonify({"success": True, "data": playlist}), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# 공개 플레이리스트 목록 조회 (자신의 플레이리스트 제외)
+def get_public_playlists():
+    user_no, role_no, error_resp = require_auth()
+    if error_resp:
+        return error_resp
+
+    try:
+        playlists, error = playlist_svc.get_public_playlists(exclude_user_no=user_no)
+        if error:
+            return jsonify({"success": False, "message": error}), 500
+        return jsonify({"success": True, "data": playlists}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# 플레이리스트 복사
+def copy_playlist(playlist_no: int):
+    user_no, role_no, error_resp = require_auth()
+    if error_resp:
+        return error_resp
+
+    data = request.get_json(silent=True) or {}
+    new_title = data.get('title')
+    new_content = data.get('content')
+
+    if not new_title:
+        return jsonify({"success": False, "message": "title 필드가 필요합니다."}), 400
+
+    try:
+        new_playlist_no, error = playlist_svc.copy_playlist(
+            playlist_no, user_no, new_title, new_content
+        )
+        if error:
+            return jsonify({"success": False, "message": error}), 400
+        return jsonify({
+            "success": True,
+            "data": {
+                "playlist_no": new_playlist_no,
+                "title": new_title,
+                "content": new_content
+            }
+        }), 201
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
