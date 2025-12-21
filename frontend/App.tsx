@@ -8,7 +8,7 @@ import { Music, Playlist, AppView, User } from './types';
 import { getAccessToken, getPopularTracks, searchSpotifyTracks } from './services/spotifyService';
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
 import { getUserProfile, updateUserProfile, deleteAccount } from './services/userService';
-import { getUserPlaylists } from './services/playlistService';
+import { getUserPlaylists, createPlaylist } from './services/playlistService';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, MOCK_STATS } from './constants';
 
 import Header from './components/Header';
@@ -508,20 +508,29 @@ function App() {
           items={cart}
           onRemove={(url) => setCart(cart.filter(c => c.spotify_url !== url))}
           onClear={() => setCart([])}
-          onSavePlaylist={(title, desc) => {
-            const newP: Playlist = {
-              playlist_no: Date.now(),
-              user_no: user.user_no,
-              title,
-              content: desc,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              music_items: cart
-            };
-            setPlaylists([newP, ...playlists]);
-            setCart([]);
-            setIsCartOpen(false);
-            setView('library');
+          onSavePlaylist={async (title, desc) => {
+            try {
+              // 백엔드 API로 플레이리스트 생성
+              const response = await createPlaylist(title, desc);
+
+              if (response.success) {
+                // 생성된 플레이리스트 정보
+                const newPlaylist = response.data;
+
+                // 로컬 상태 업데이트
+                setPlaylists([newPlaylist, ...playlists]);
+                setCart([]);
+                setIsCartOpen(false);
+                setView('library');
+
+                alert('플레이리스트가 생성되었습니다!');
+              } else {
+                alert(response.message || '플레이리스트 생성에 실패했습니다.');
+              }
+            } catch (error) {
+              console.error('플레이리스트 생성 실패:', error);
+              alert('플레이리스트 생성 중 오류가 발생했습니다.');
+            }
           }}
         />
       </main>
