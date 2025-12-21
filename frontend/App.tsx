@@ -1,5 +1,5 @@
 // frontend/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SearchPage from './pages/SearchPage';
 
 
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { Music, Playlist, AppView, User } from './types';
-import { searchMusic, getAllMusic, getTop50Music,  getMusicByGenre } from './services/musicService';
+import { searchMusic, getAllMusic, getTop50Music, getMusicByGenre } from './services/musicService';
 import { login, register, logout as logoutApi, getToken, verifyToken } from './services/authService';
 import { getUserPlaylists, createPlaylist, updatePlaylist, deletePlaylist, addMusicToPlaylist, removeMusicFromPlaylist, getPlaylistMusic } from './services/playlistService';
 import { MOCK_NOTICES, MOCK_STATS } from './constants';
@@ -60,6 +60,13 @@ function App() {
 
   const [isAddToPlaylistModalOpen, setIsAddToPlaylistModalOpen] = useState(false);
   const [selectedMusicToAdd, setSelectedMusicToAdd] = useState<Music | null>(null);
+
+  // 🎧 오디오 플레이어 상태
+  const [currentSong, setCurrentSong] = useState<Music | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -163,104 +170,104 @@ function App() {
   }, []);
 
   // 백엔드 API로 음악 검색
-const handleSearch = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!searchQuery.trim()) return;
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
 
-  setIsSearching(true);
+    setIsSearching(true);
 
-  try {
-    // ✅ 1. #으로 시작하면 "장르 검색"
-    if (searchQuery.startsWith('#')) {
-      let rawGenre = searchQuery.slice(1).trim().toLowerCase();
+    try {
+      // ✅ 1. #으로 시작하면 "장르 검색"
+      if (searchQuery.startsWith('#')) {
+        let rawGenre = searchQuery.slice(1).trim().toLowerCase();
 
-      // ✅ 2. 장르 별칭 → DB 장르명 매핑
-      const GENRE_ALIAS: Record<string, string> = {
-        'kpop': 'K-Pop',
-        'k-pop': 'K-Pop',
-        '케이팝': 'K-Pop',
+        // ✅ 2. 장르 별칭 → DB 장르명 매핑
+        const GENRE_ALIAS: Record<string, string> = {
+          'kpop': 'K-Pop',
+          'k-pop': 'K-Pop',
+          '케이팝': 'K-Pop',
 
-        'pop': 'Pop',
+          'pop': 'Pop',
 
-        'hiphop': 'Hip-Hop',
-        '힙합': 'Hip-Hop',
+          'hiphop': 'Hip-Hop',
+          '힙합': 'Hip-Hop',
 
-        'rnb': 'R&B',
-        '알앤비': 'R&B',
+          'rnb': 'R&B',
+          '알앤비': 'R&B',
 
-        'jazz': 'Jazz',
-        '재즈': 'Jazz',
+          'jazz': 'Jazz',
+          '재즈': 'Jazz',
 
-        'rock': 'Rock',
-        '락': 'Rock',
-        '록': 'Rock',
+          'rock': 'Rock',
+          '락': 'Rock',
+          '록': 'Rock',
 
-        'classical': 'Classical',
-        '클래식': 'Classical',
+          'classical': 'Classical',
+          '클래식': 'Classical',
 
-        'electronic': 'Electronic',
-        '일렉트로닉': 'Electronic',
+          'electronic': 'Electronic',
+          '일렉트로닉': 'Electronic',
 
-        'indie': 'Indie',
-        '인디': 'Indie',
+          'indie': 'Indie',
+          '인디': 'Indie',
 
-        'metal': 'Metal',
-        '메탈': 'Metal'
-      };
+          'metal': 'Metal',
+          '메탈': 'Metal'
+        };
 
-      // 🎵 장르 버튼 클릭 시 검색
-
-
+        // 🎵 장르 버튼 클릭 시 검색
 
 
-      const genre = GENRE_ALIAS[rawGenre] ?? searchQuery.slice(1);
 
-      // ✅ 3. DB 장르 검색 API 호출
-      const res = await getMusicByGenre(genre);
 
-      if (res.success && res.data) {
-        setSearchResults(res.data);
-      } else {
-        setSearchResults([]);
+        const genre = GENRE_ALIAS[rawGenre] ?? searchQuery.slice(1);
+
+        // ✅ 3. DB 장르 검색 API 호출
+        const res = await getMusicByGenre(genre);
+
+        if (res.success && res.data) {
+          setSearchResults(res.data);
+        } else {
+          setSearchResults([]);
+        }
       }
-    }
-    // ✅ 4. 일반 검색 (가수 / 곡 / 앨범 → Spotify)
-    else {
-      const res = await searchMusic(searchQuery);
+      // ✅ 4. 일반 검색 (가수 / 곡 / 앨범 → Spotify)
+      else {
+        const res = await searchMusic(searchQuery);
 
-      if (res.success && res.data) {
-        setSearchResults(res.data);
-      } else {
-        setSearchResults([]);
+        if (res.success && res.data) {
+          setSearchResults(res.data);
+        } else {
+          setSearchResults([]);
+        }
       }
-    }
-  } catch (err) {
-    console.error(err);
-    setSearchResults([]);
-  } finally {
-    setIsSearching(false);
-  }
-};
-
-// 🎵 장르 버튼 클릭 → DB 장르 검색
-const handleSearchByGenre = async (genre: string) => {
-  setSearchQuery(genre);
-  setIsSearching(true);
-
-  try {
-    const res = await getMusicByGenre(genre);
-    if (res.success && res.data) {
-      setSearchResults(res.data);
-    } else {
+    } catch (err) {
+      console.error(err);
       setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
-  } catch (err) {
-    console.error('장르 검색 실패:', err);
-    setSearchResults([]);
-  } finally {
-    setIsSearching(false);
-  }
-};
+  };
+
+  // 🎵 장르 버튼 클릭 → DB 장르 검색
+  const handleSearchByGenre = async (genre: string) => {
+    setSearchQuery(genre);
+    setIsSearching(true);
+
+    try {
+      const res = await getMusicByGenre(genre);
+      if (res.success && res.data) {
+        setSearchResults(res.data);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error('장르 검색 실패:', err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
 
 
@@ -275,11 +282,67 @@ const handleSearchByGenre = async (genre: string) => {
     }
   };
 
-  // 🎵 Spotify 웹 플레이어에서 곡 열기
+  // 🎵 곡 재생/선택
   const handlePlaySong = (song: Music) => {
-    if (song.spotify_url) {
-      window.open(song.spotify_url, '_blank');
+    if (!song.preview_url) {
+      // preview가 없으면 Spotify에서 열기
+      if (song.spotify_url) {
+        window.open(song.spotify_url, '_blank');
+      }
+      return;
     }
+
+    if (currentSong?.spotify_url === song.spotify_url) {
+      togglePlayPause();
+    } else {
+      setCurrentSong(song);
+      setIsPlaying(true);
+      setCurrentTime(0);
+    }
+  };
+
+  // 재생/일시정지 토글
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // 오디오 시간 업데이트
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  // 오디오 메타데이터 로드
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  // 진행바 클릭으로 seek
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !duration) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const newTime = percent * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  // 시간 포맷팅 (초 -> mm:ss)
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // 플레이리스트 클릭 핸들러
@@ -795,6 +858,72 @@ const handleSearchByGenre = async (genre: string) => {
           {view === 'notices' && <NoticesPage />}
 
         </div>
+
+        {/* Player Bar */}
+        {currentSong && currentSong.preview_url && (
+          <div className="h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 flex items-center px-8 fixed bottom-0 left-64 right-0 z-30 shadow-2xl">
+            {/* Hidden Audio Element */}
+            <audio
+              ref={audioRef}
+              src={currentSong.preview_url}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={() => setIsPlaying(false)}
+              autoPlay={isPlaying}
+            />
+
+            {/* Song Info */}
+            <div className="flex items-center gap-4 w-1/3">
+              <img src={currentSong.album_image_url} className="w-14 h-14 rounded-lg shadow-lg" />
+              <div className="truncate">
+                <p className="font-bold text-sm truncate text-white">{currentSong.track_name}</p>
+                <p className="text-xs text-zinc-400 truncate mt-1">{currentSong.artist_name}</p>
+              </div>
+              <button className="ml-2 text-zinc-500 hover:text-primary transition-colors">
+                <Heart className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Controls */}
+            <div className="flex-1 flex flex-col items-center gap-2">
+              <div className="flex items-center gap-6">
+                <button
+                  onClick={togglePlayPause}
+                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg"
+                >
+                  {isPlaying ? <Pause className="w-5 h-5 text-black" /> : <Play className="w-5 h-5 text-black ml-1" />}
+                </button>
+              </div>
+
+              {/* Progress Bar */}
+              <div
+                className="w-full max-w-md h-1.5 bg-zinc-800 rounded-full overflow-hidden cursor-pointer group"
+                onClick={handleSeek}
+              >
+                <div
+                  className="h-full bg-primary shadow-[0_0_10px_rgba(29,185,84,0.5)] transition-all"
+                  style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
+                />
+              </div>
+
+              {/* Time Display */}
+              <div className="flex justify-between w-full max-w-md text-[10px] text-zinc-500 font-mono">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="w-1/3 flex justify-end">
+              <button
+                onClick={() => { setCurrentSong(null); setIsPlaying(false); }}
+                className="text-zinc-500 hover:text-red-400 text-xs"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
 
         <CartSidebar
           isOpen={isCartOpen}
