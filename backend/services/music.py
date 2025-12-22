@@ -24,12 +24,11 @@ GLOBAL_TOP_50_PLAYLIST_ID = "37i9dQZEVXbMDoHDwVN2tF"
 
 
 def get_spotify_client():
-    # ✅ Docker 환경 변수 이름과 일치 (SPOTIFY_*)
     client_id = os.getenv("SPOTIFY_CLIENT_ID")
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 
     if not client_id or not client_secret:
-        raise RuntimeError("Spotify 환경변수(SPOTIFY_CLIENT_ID/SECRET)가 설정되지 않았습니다.")
+        raise RuntimeError("Spotify 환경변수(SPOTIY_CLIENT_ID/SECRET)가 설정되지 않았습니다.")
 
     return Spotify(
         auth_manager=SpotifyClientCredentials(

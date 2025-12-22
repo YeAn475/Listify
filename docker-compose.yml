@@ -41,7 +41,9 @@ services:
       - SPOTIFY_CLIENT_SECRET=${SPOTIPY_CLIENT_SECRET}  # .env의 SPOTIPY_CLIENT_SECRET 사용
     ports:
       - "5001:5001"
+
     # depends_on:  # 로컬 MySQL 사용으로 제거
+
     #   db:
     #     condition: service_healthy
     extra_hosts:
